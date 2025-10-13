@@ -84,3 +84,24 @@ async function createTask() {
     alert("Ошибка при создании задачи: " + JSON.stringify(error));
   }
 }
+
+async function linkTelegram() {
+  const telegramId = document.getElementById("telegram-id").value;
+
+  const response = await fetch("/api/link-telegram/", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({telegram_id: telegramId})
+  });
+
+  const data = await response.json();
+
+  if (response.ok) {
+    alert("Telegram успешно привязан!");
+  } else {
+    alert("Ошибка: " + JSON.stringify(data));
+  }
+}
