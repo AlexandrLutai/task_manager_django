@@ -21,3 +21,9 @@ class Task(models.Model):
 
     def __str__(self):
         return f'{self.title} ({self.assigned_to.username})'
+
+class TelegramProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    telegram_id = models.BigIntegerField(unique=True)
+    jwt_token = models.TextField(blank=True, null=True)  
+    created_at = models.DateTimeField(auto_now_add=True)
