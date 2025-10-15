@@ -10,7 +10,7 @@ h1 {
   margin-bottom: 40px;
 }
 
-#login, #task-ui {
+#login-ui, #task-ui {
   max-width: 600px;
   margin: 0 auto;
   background: white;

@@ -1,6 +1,49 @@
 let accessToken = null;
+const socket = new WebSocket("ws://127.0.0.1:8000/ws/tasks/");
 
-async function login() {
+socket.onopen = () => console.log("✅ WebSocket соединение установлено");
+
+socket.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.event === "task_updated") {
+    console.log("🔄 Обновление задач:", data.message);
+    loadTasks();  // Повторная загрузка задач
+  }
+};
+
+socket.onerror = (error) => {
+  console.error("❌ WebSocket ошибка:", error);
+};
+
+function connectWebSocket() {
+  const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+  const socketUrl = `${wsScheme}://${window.location.host}/ws/tasks/`;
+
+  socket = new WebSocket(socketUrl);
+
+  socket.onopen = () => {
+    console.log("✅ WebSocket соединение установлено");
+  };
+
+  socket.onmessage = (event) => {
+    const task = JSON.parse(event.data);
+    console.log("📬 Обновление по задаче:", task);
+
+    loadTasks();
+  };
+
+  socket.onclose = () => {
+    console.log("⚠️ WebSocket отключён. Переподключение через 3 сек...");
+    setTimeout(connectWebSocket, 3000);
+  };
+
+  socket.onerror = (error) => {
+    console.error("❌ WebSocket ошибка:", error);
+  };
+}
+
+
+async function loginUser() {
   const username = document.getElementById("username").value;
   const password = document.getElementById("password").value;
 
@@ -14,7 +57,7 @@ async function login() {
 
   if (response.ok) {
     accessToken = data.access;
-    document.getElementById("login").style.display = "none";
+    document.getElementById("login-ui").style.display = "none";
     document.getElementById("task-ui").style.display = "block";
 
     await loadTasks();
@@ -105,3 +148,7 @@ async function linkTelegram() {
     alert("Ошибка: " + JSON.stringify(data));
   }
 }
+
+
+
+connectWebSocket();
