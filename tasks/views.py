@@ -5,6 +5,21 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+
+def notify_tasks_updated():
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        "tasks",
+        {
+            "type": "send_task_update",
+            "data": {
+                "event": "task_updated",
+                "message": "Обновлены задачи",
+            }
+        }
+    )
 
 class MyTaskListView(generics.ListAPIView):
     serializer_class = TaskSerializer
@@ -28,6 +43,7 @@ class TaskCreateView(generics.CreateAPIView):
             assigned_to=user,
             task_list=task_list
         )
+        notify_tasks_updated()
 
 class TaskCompleteView(generics.UpdateAPIView):
     queryset = Task.objects.all()
@@ -38,7 +54,9 @@ class TaskCompleteView(generics.UpdateAPIView):
         task = self.get_object()
         task.completed = True
         task.save()
+        notify_tasks_updated()
         return self.retrieve(request, *args, **kwargs)
+        
     
 class LinkTelegramView(APIView):
     permission_classes = [IsAuthenticated]
@@ -73,6 +91,7 @@ class TelegramTaskList(APIView):
 
         tasks = Task.objects.filter(assigned_to=profile.user)
         serializer = TaskSerializer(tasks, many=True)
+        notify_tasks_updated()
         return Response(serializer.data)
 
 
