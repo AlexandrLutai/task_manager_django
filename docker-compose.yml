@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # Redis - брокер сообщений и канальный слой
+  redis:
+    image: redis:7-alpine
+    container_name: task_manager_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - task_manager_network
+
+  # Django веб-приложение
+  web:
+    build: .
+    container_name: task_manager_web
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - static_volume:/app/static
+    environment:
+      - DEBUG=1
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - BOT_TOKEN=${BOT_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - DJANGO_API=http://web:8000/api/
+    depends_on:
+      - redis
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    restart: unless-stopped
+    networks:
+      - task_manager_network
+
+  # Celery Worker для фоновых задач
+  celery:
+    build: .
+    container_name: task_manager_celery
+    volumes:
+      - .:/app
+    environment:
+      - DEBUG=1
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    depends_on:
+      - redis
+      - web
+    command: celery -A config worker --loglevel=info
+    restart: unless-stopped
+    networks:
+      - task_manager_network
+
+  # Celery Beat для периодических задач (опционально)
+  celery-beat:
+    build: .
+    container_name: task_manager_celery_beat
+    volumes:
+      - .:/app
+    environment:
+      - DEBUG=1
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - web
+    command: celery -A config beat --loglevel=info
+    restart: unless-stopped
+    networks:
+      - task_manager_network
+
+  # Telegram бот
+  bot:
+    build: .
+    container_name: task_manager_bot
+    volumes:
+      - .:/app
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DJANGO_API=http://web:8000/api/
+    depends_on:
+      - web
+    command: python bot/bot.py
+    restart: unless-stopped
+    networks:
+      - task_manager_network
+
+# Сети для взаимодействия контейнеров
+networks:
+  task_manager_network:
+    driver: bridge
+
+# Volumes для сохранения данных
+volumes:
+  redis_data:
+    driver: local
+  static_volume:
+    driver: local
