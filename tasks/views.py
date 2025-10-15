@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-
+from .tasks import send_new_task_notification
 def notify_tasks_updated():
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(
@@ -39,11 +39,12 @@ class TaskCreateView(generics.CreateAPIView):
         if not task_list:
             task_list = TaskList.objects.create(name="Default", owner=user)
 
-        serializer.save(
+        task = serializer.save(
             assigned_to=user,
             task_list=task_list
         )
         notify_tasks_updated()
+        send_new_task_notification.delay(user.id, task.id)
 
 class TaskCompleteView(generics.UpdateAPIView):
     queryset = Task.objects.all()
